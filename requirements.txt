@@ -1,0 +1,8 @@
+streamlit
+python-docx
+PyPDF2
+pandas
+nltk==3.9.1
+scipy
+sklearn==1.5.2
+streamlit-extras
