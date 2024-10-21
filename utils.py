@@ -12,6 +12,7 @@ from scipy.sparse import vstack # Import vstack for sparse matrices
 # Import necessary libraries
 import pickle
 from scipy import sparse  # Import the sparse module
+from huggingface_hub import hf_hub_download
 
 nltk.download('punkt')
 nltk.download('stopwords')
@@ -114,9 +115,22 @@ def save_tfidf_data(tfidf_matrix, vectorizer):
         
 # Load the TF-IDF matrix and vectorizer
 def load_tfidf_data():
-    tfidf_matrix = sparse.load_npz('tfidf_matrix.npz')
-    with open('tfidf_vectorizer.pkl', 'rb') as f:
-        vectorizer = pickle.load(f)
+    # If the local file is not in the system, pull from the huggingface.
+    repo_id = "Isuru0x01/plagiarism_checker_tfidf"
+    try:
+        tfidf_matrix = sparse.load_npz('tfidf_matrix.npz')
+        with open('tfidf_vectorizer.pkl', 'rb') as f:
+            vectorizer = pickle.load(f)
+    except:
+        # Download the TF-IDF matrix
+        matrix_path = hf_hub_download(repo_id=repo_id, filename="tfidf_matrix.npz")
+        tfidf_matrix = sparse.load_npz(matrix_path)
+
+        # Download the vectorizer
+        vectorizer_path = hf_hub_download(repo_id=repo_id, filename="tfidf_vectorizer.pkl")
+        with open(vectorizer_path, 'rb') as f:
+            vectorizer = pickle.load(f)
+            
     return tfidf_matrix, vectorizer
 
 # Check similarity between a new report and existing reports
@@ -135,3 +149,36 @@ def add_report_to_tfidf(new_report, documents, vectorizer):
     documents.append(preprocess(new_report))
     tfidf_matrix = vectorizer.fit_transform(documents)  # Refit the vectorizer to include the new report
     return tfidf_matrix
+
+def highlight_similar_text(new_report, reference_report, vectorizer):
+    """
+    Highlight similar text between new report and reference report
+    """
+    # Store original case version for highlighting
+    original_report = new_report
+    
+    # Preprocess reports for vectorization
+    new_report_proc = preprocess(new_report)
+    reference_report_proc = preprocess(reference_report)
+    
+    # Vectorize preprocessed reports
+    new_report_vector = vectorizer.transform([new_report_proc]).toarray()[0]
+    reference_report_vector = vectorizer.transform([reference_report_proc]).toarray()[0]
+    
+    # Get the feature names (words)
+    feature_names = vectorizer.get_feature_names_out()
+    
+    # Find matching terms
+    matching_indices = np.where((new_report_vector > 0) & (reference_report_vector > 0))[0]
+    matching_words = [feature_names[i] for i in matching_indices]
+    
+    # Sort matching words by length (longest first) to avoid partial word replacements
+    matching_words.sort(key=len, reverse=True)
+    
+    # Create case-insensitive pattern for each word
+    highlighted_report = original_report
+    for word in matching_words:
+        pattern = re.compile(re.escape(word), re.IGNORECASE)
+        highlighted_report = pattern.sub(lambda m: f"**{m.group()}**", highlighted_report)
+    
+    return highlighted_report, matching_words

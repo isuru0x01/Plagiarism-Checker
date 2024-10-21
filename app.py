@@ -7,6 +7,8 @@ import nltk
 from streamlit_extras.let_it_rain import rain
 import random
 from datetime import datetime as dt
+import PyPDF2
+from huggingface_hub import HfApi, upload_file
 
 # Streamlit app
 def main():
@@ -67,7 +69,10 @@ def show_home():
 
 def show_text_input():
     
+    st.sidebar.subheader("Downloading nltk punkt")
+    progress_bar = st.sidebar.progress(0)
     tfidf_matrix, vectorizer = utils.load_tfidf_data()
+    progress_bar.progress(100)
     
     st.header("Text Input")
     text = st.text_area("Paste your text here:", height=300)
@@ -83,7 +88,14 @@ def show_text_input():
             threshold = 0.2
 
             if max(similarities[0]) > threshold:
-                st.info("Plagiarism detected!")
+                max_similarity_index = similarities[0].argmax()
+                max_similarity_score = similarities[0][max_similarity_index]
+                similarity_percentage = max_similarity_score * 100
+                
+                st.info(f"Plagiarism detected! Similarity score: {similarity_percentage:.2f}%")
+                st.write(f"This document closely matches the uploaded report, which is why it was flagged.")
+                
+                st.write(f"**Most Similar Document:** Document {max_similarity_index + 1}")
                 
                 # Define the emoji list
                 emojis = ["🫣", "🤔", "🥵", "🥺", "😭", "😈", "💔"]
@@ -95,13 +107,31 @@ def show_text_input():
                     animation_length=random.uniform(0.5, 2)
                 )
             else:
-                st.success("No plagiarism detected. Adding the report to the reference set.")
+                st.success("Minor Or No plagiarism detected. Adding the report to the reference set.")
                 
                 # Append the new report to the TF-IDF matrix
                 tfidf_matrix = utils.append_to_tfidf_matrix(student_report, vectorizer, tfidf_matrix)
                 
                 # Save the updated matrix and vectorizer for future use
                 utils.save_tfidf_data(tfidf_matrix, vectorizer)
+                
+                # Upload the TF-IDF matrix & vectorizer to the huggingface
+                repo_id = "Isuru0x01/plagiarism_checker_tfidf"
+                # Upload the TF-IDF matrix file
+                upload_file(
+                    path_or_fileobj="tfidf_matrix.npz",
+                    path_in_repo="tfidf_matrix.npz",  # name the file in the repo
+                    repo_id=repo_id,
+                    repo_type="model"  # or 'dataset'
+                )
+                
+                # Upload the vectorizer file
+                upload_file(
+                    path_or_fileobj="tfidf_vectorizer.pkl",
+                    path_in_repo="tfidf_vectorizer.pkl",
+                    repo_id=repo_id,
+                    repo_type="model"
+                )
             
 
 def show_file_upload():
