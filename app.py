@@ -31,13 +31,15 @@ def main():
     with st.sidebar:
         st.title("Plagiarism Checker ✅")
         st.write('This application developed to check the plagiarism of document provided.')
-        
-        st.sidebar.subheader("Downloading nltk punkt")
+        downloading_nltk_message = st.sidebar.empty()
+        downloading_nltk_message.subheader("Downloading nltk punkt")
         progress_bar = st.sidebar.progress(0)
         nltk.download('punkt')
         nltk.download('stopwords')
         nltk.download('punkt_tab')
         progress_bar.progress(100)
+        progress_bar.empty()
+        downloading_nltk_message.empty()
             
     if 'page' not in st.session_state:
         st.session_state.page = "Home"
@@ -70,9 +72,17 @@ def show_home():
 def show_text_input():
     
     st.sidebar.subheader("Downloading nltk punkt")
+    # Create an empty container for the loading message
+    loading_message = st.empty()
+    loading_message.write("Loading the data...")
     progress_bar = st.sidebar.progress(0)
     tfidf_matrix, vectorizer = utils.load_tfidf_data()
     progress_bar.progress(100)
+    # Wait for 5 seconds
+    time.sleep(5)
+    # Hide the progress bar and the loading message
+    progress_bar.empty()
+    loading_message.empty()
     
     st.header("Text Input")
     text = st.text_area("Paste your text here:", height=300)
@@ -96,16 +106,6 @@ def show_text_input():
                 st.write(f"This document closely matches the uploaded report, which is why it was flagged.")
                 
                 st.write(f"**Most Similar Document:** Document {max_similarity_index + 1}")
-                
-                # Define the emoji list
-                emojis = ["🫣", "🤔", "🥵", "🥺", "😭", "😈", "💔"]
-                
-                rain(
-                    emoji=random.choice(emojis),
-                    font_size=54,  # Random sizes
-                    falling_speed=random.randint(4, 8),  # Random speeds
-                    animation_length=random.uniform(0.5, 2)
-                )
             else:
                 st.success("Minor Or No plagiarism detected. Adding the report to the reference set.")
                 
@@ -137,9 +137,18 @@ def show_text_input():
 def show_file_upload():
     st.header("File Upload")
     uploaded_file = st.file_uploader("Choose a file", type=['txt', 'docx', 'pdf'])
-    
+    # Create an empty container for the loading message
+    loading_message = st.sidebar.empty()
+    loading_message.write("Loading the data...")
+    progress_bar = st.sidebar.progress(0)
     tfidf_matrix, vectorizer = utils.load_tfidf_data()
-        
+    progress_bar.progress(100)
+    # Wait for 5 seconds
+    time.sleep(5)
+    # Hide the progress bar and the loading message
+    progress_bar.empty()
+    loading_message.empty()
+    
     if uploaded_file is not None:
         if uploaded_file.type == "text/plain":
             new_report = StringIO(uploaded_file.getvalue().decode("utf-8")).read()
@@ -149,25 +158,41 @@ def show_file_upload():
             threshold = 0.2
 
             if max(similarities[0]) > threshold:
-                st.info("Plagiarism detected!")
+                max_similarity_index = similarities[0].argmax()
+                max_similarity_score = similarities[0][max_similarity_index]
+                similarity_percentage = max_similarity_score * 100
                 
-                # Define the emoji list
-                emojis = ["🫣", "🤔", "🥵", "🥺", "😭", "😈", "💔"]
+                st.info(f"Plagiarism detected! Similarity score: {similarity_percentage:.2f}%")
+                st.write(f"This document closely matches the uploaded report, which is why it was flagged.")
                 
-                rain(
-                    emoji=random.choice(emojis),
-                    font_size=54,  # Random sizes
-                    falling_speed=random.randint(4, 8),  # Random speeds
-                    animation_length=random.uniform(0.5, 2)
-                )
+                st.write(f"**Most Similar Document:** Document {max_similarity_index + 1}")
+                
             else:
-                st.success("No plagiarism detected. Adding the report to the reference set.")
+                st.success("Minor Or No plagiarism detected. Adding the report to the reference set.")
                 
                 # Append the new report to the TF-IDF matrix
                 tfidf_matrix = utils.append_to_tfidf_matrix(new_report, vectorizer, tfidf_matrix)
                 
                 # Save the updated matrix and vectorizer for future use
                 utils.save_tfidf_data(tfidf_matrix, vectorizer)
+                
+                # Upload the TF-IDF matrix & vectorizer to the huggingface
+                repo_id = "Isuru0x01/plagiarism_checker_tfidf"
+                # Upload the TF-IDF matrix file
+                upload_file(
+                    path_or_fileobj="tfidf_matrix.npz",
+                    path_in_repo="tfidf_matrix.npz",  # name the file in the repo
+                    repo_id=repo_id,
+                    repo_type="model"  # or 'dataset'
+                )
+                
+                # Upload the vectorizer file
+                upload_file(
+                    path_or_fileobj="tfidf_vectorizer.pkl",
+                    path_in_repo="tfidf_vectorizer.pkl",
+                    repo_id=repo_id,
+                    repo_type="model"
+                )
         elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
             
             new_report = utils.preprocess(utils.read_word_file(uploaded_file))
@@ -177,25 +202,41 @@ def show_file_upload():
             threshold = 0.8
 
             if max(similarities[0]) > threshold:
-                st.info("Plagiarism detected!")
+                max_similarity_index = similarities[0].argmax()
+                max_similarity_score = similarities[0][max_similarity_index]
+                similarity_percentage = max_similarity_score * 100
                 
-                # Define the emoji list
-                emojis = ["🫣", "🤔", "🥵", "🥺", "😭", "😈", "💔"]
+                st.info(f"Plagiarism detected! Similarity score: {similarity_percentage:.2f}%")
+                st.write(f"This document closely matches the uploaded report, which is why it was flagged.")
                 
-                rain(
-                    emoji=random.choice(emojis),
-                    font_size=54,  # Random sizes
-                    falling_speed=random.randint(4, 8),  # Random speeds
-                    animation_length=random.uniform(0.5, 2)
-                )
+                st.write(f"**Most Similar Document:** Document {max_similarity_index + 1}")
             else:
-                st.success("No plagiarism detected. Adding the report to the reference set.")
+                st.success("Minor Or No plagiarism detected. Adding the report to the reference set.")
                 
                 # Append the new report to the TF-IDF matrix
                 tfidf_matrix = utils.append_to_tfidf_matrix(new_report, vectorizer, tfidf_matrix)
                 
                 # Save the updated matrix and vectorizer for future use
                 utils.save_tfidf_data(tfidf_matrix, vectorizer)
+                
+                # Upload the TF-IDF matrix & vectorizer to the huggingface
+                repo_id = "Isuru0x01/plagiarism_checker_tfidf"
+                # Upload the TF-IDF matrix file
+                upload_file(
+                    path_or_fileobj="tfidf_matrix.npz",
+                    path_in_repo="tfidf_matrix.npz",  # name the file in the repo
+                    repo_id=repo_id,
+                    repo_type="model"  # or 'dataset'
+                )
+                
+                # Upload the vectorizer file
+                upload_file(
+                    path_or_fileobj="tfidf_vectorizer.pkl",
+                    path_in_repo="tfidf_vectorizer.pkl",
+                    repo_id=repo_id,
+                    repo_type="model"
+                )
+                
         elif uploaded_file.type == "application/pdf":
             pdf_reader = PyPDF2.PdfReader(uploaded_file)
             text = ""
@@ -208,25 +249,40 @@ def show_file_upload():
             threshold = 0.2
             
             if max(similarities[0]) > threshold:
-                st.info("Plagiarism detected!")
+                max_similarity_index = similarities[0].argmax()
+                max_similarity_score = similarities[0][max_similarity_index]
+                similarity_percentage = max_similarity_score * 100
                 
-                # Define the emoji list
-                emojis = ["🫣", "🤔", "🥵", "🥺", "😭", "😈", "💔"]
+                st.info(f"Plagiarism detected! Similarity score: {similarity_percentage:.2f}%")
+                st.write(f"This document closely matches the uploaded report, which is why it was flagged.")
                 
-                rain(
-                    emoji=random.choice(emojis),
-                    font_size=54,  # Random sizes
-                    falling_speed=random.randint(4, 8),  # Random speeds
-                    animation_length=random.uniform(0.5, 2)
-                )
+                st.write(f"**Most Similar Document:** Document {max_similarity_index + 1}")
             else:
-                st.success("No plagiarism detected. Adding the report to the reference set.")
+                st.success("Minor Or No plagiarism detected. Adding the report to the reference set.")
                 
                 # Append the new report to the TF-IDF matrix
                 tfidf_matrix = utils.append_to_tfidf_matrix(new_report, vectorizer, tfidf_matrix)
                 
                 # Save the updated matrix and vectorizer for future use
                 utils.save_tfidf_data(tfidf_matrix, vectorizer)
+                
+                # Upload the TF-IDF matrix & vectorizer to the huggingface
+                repo_id = "Isuru0x01/plagiarism_checker_tfidf"
+                # Upload the TF-IDF matrix file
+                upload_file(
+                    path_or_fileobj="tfidf_matrix.npz",
+                    path_in_repo="tfidf_matrix.npz",  # name the file in the repo
+                    repo_id=repo_id,
+                    repo_type="model"  # or 'dataset'
+                )
+                
+                # Upload the vectorizer file
+                upload_file(
+                    path_or_fileobj="tfidf_vectorizer.pkl",
+                    path_in_repo="tfidf_vectorizer.pkl",
+                    repo_id=repo_id,
+                    repo_type="model"
+                )
 
 def show_about_page():
     # Application title and description
